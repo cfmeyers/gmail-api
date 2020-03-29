@@ -16,6 +16,11 @@ SCOPES = ["https://www.googleapis.com/auth/gmail.readonly"]
 
 
 class Attachment(NamedTuple):
+    """Cleaned up representation of an attachment (in an email) from Gmail.
+
+    To download the attachement to a file, use the `safe_to_file()` method.
+    """
+
     attachment_id: str
     message_id: str
     user_id: str
@@ -37,6 +42,12 @@ class Attachment(NamedTuple):
 
 
 class Email(NamedTuple):
+    """Cleaned up representation of an email from Gmail.
+
+    Note attachments is a list of (possibly 0) attachments.
+    To access original API object returned from the Google API, use the `raw_message`
+    """
+
     from_address: str
     to_address: str
     cc_addresses: tuple
@@ -66,6 +77,8 @@ class Email(NamedTuple):
 
 
 def get_service() -> Resource:
+    """Boilerplate copied from Google's quickstart.py"""
+
     creds = None
     # The file token.pickle stores the user's access and refresh tokens, and is
     # created automatically when the authorization flow completes for the first
@@ -135,6 +148,11 @@ def download_all_message_specs(service: Resource, query) -> List[Dict[str, str]]
 
 
 def get_emails(service: Resource, query=None) -> List[Email]:
+    """Get all the emails from connectd Gmail account.
+
+    If you specify query, will filter by query.
+    See https://support.google.com/mail/answer/7190?hl=en for example queries.
+    """
     users = service.users()
     message_specs = download_all_message_specs(service, query)
 
@@ -174,15 +192,11 @@ def get_emails(service: Resource, query=None) -> List[Email]:
     return emails
 
 
-def get_already_visited(path: str = "already_visited.csv") -> List[str]:
-    try:
-        with open(path) as f:
-            return [l.strip() for l in f]
-    except FileNotFoundError:
-        return []
-
-
 def update_already_visited(emails: List[Email], path: str = "already_visited.csv"):
+    """Keep track of all the emails already seen by program by writing slugs to file.
+
+    Defaults to already_visited.csv as file location.
+    """
     already_visited = set(get_already_visited())
     with open(path, "a") as f:
         for email in emails:
@@ -190,7 +204,24 @@ def update_already_visited(emails: List[Email], path: str = "already_visited.csv
                 f.write(email.slug + "\n")
 
 
+def get_already_visited(path: str = "already_visited.csv") -> List[str]:
+    """Get list of slugs of already visited emails by reading them from file location.
+
+    Defaults to already_visited.csv as file location.
+    """
+    try:
+        with open(path) as f:
+            return [l.strip() for l in f]
+    except FileNotFoundError:
+        return []
+
+
 def download_all_attachments_last_n_days(n: int = 2, download_dir: str = ""):
+    """Download all attachments from the last n days (where n defaults to 2).
+
+    Will not re-download attachments you've already downloaded, so it's safe to run
+    this function multiple times a day.
+    """
     query = f"newer_than:{n}d"
     service = get_service()
     emails = get_emails(service, query=query)
@@ -198,7 +229,10 @@ def download_all_attachments_last_n_days(n: int = 2, download_dir: str = ""):
     for email in emails:
         if email.slug not in already_visited:
             for attachment in email.attachments:
-                path = f"{download_dir}/{email.slug}.{attachment.file_name}"
+                if download_dir:
+                    path = f"{download_dir}/{email.slug}.{attachment.file_name}"
+                else:
+                    path = f"{email.slug}.{attachment.file_name}"
                 attachment.save_to_file(path)
     update_already_visited(emails)
 
