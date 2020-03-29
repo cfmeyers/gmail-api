@@ -1,3 +1,5 @@
 venv
 token.pickle
 __pycache__
+data
+already_visited.csv
